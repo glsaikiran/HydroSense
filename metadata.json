@@ -1,0 +1,6 @@
+{
+  "name": "HydroSense",
+  "description": "Smart water drinking reminders and wellness breaks powered by activity analytics and physical sensor tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
