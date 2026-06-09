@@ -520,11 +520,49 @@ fun DashboardScreen(viewModel: WaterViewModel) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = "Stand up reset: Auto on motion",
+                                text = "Stand up reset: Sustained motion",
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+                        val movementAccumulator by viewModel.movementAccumulator.collectAsStateWithLifecycle()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = null,
+                                    tint = if (movementAccumulator > 0f) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "Sustained Walk Filter (Saves brief view/lifting):",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                text = if (movementAccumulator >= 0.99f) "Resetting Clock!" else "${(movementAccumulator * 100).toInt()}% Ready",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (movementAccumulator > 0f) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        LinearProgressIndicator(
+                            progress = { movementAccumulator },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(4.dp)
+                                .clip(RoundedCornerShape(2.dp)),
+                            color = Color(0xFF10B981),
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                        )
                     }
                 }
             }
@@ -542,6 +580,7 @@ fun MovementScreen(viewModel: WaterViewModel) {
     val stationarySeconds by viewModel.stationarySeconds.collectAsStateWithLifecycle()
     val settingsState by viewModel.settingsState.collectAsStateWithLifecycle()
     val isSimulated by viewModel.sensorTracker.isSimulatedMode.collectAsStateWithLifecycle()
+    val movementAccumulator by viewModel.movementAccumulator.collectAsStateWithLifecycle()
     
     val accelValues by viewModel.sensorTracker.accelerometerValues.collectAsStateWithLifecycle()
     val gyroValues by viewModel.sensorTracker.gyroscopeValues.collectAsStateWithLifecycle()
@@ -622,6 +661,54 @@ fun MovementScreen(viewModel: WaterViewModel) {
 
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
+                    // Live Sustained Walk Reset Progress
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Default.FilterList,
+                                    contentDescription = "Filter Active Indicator",
+                                    tint = Color(0xFF10B981)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Sustained Movement Integration:",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = if (movementAccumulator >= 0.99f) "Clock Reset!" else "${(movementAccumulator * 100).toInt()}% Active",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = if (movementAccumulator > 0f) Color(0xFF10B981) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        LinearProgressIndicator(
+                            progress = { movementAccumulator },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(10.dp)
+                                .clip(RoundedCornerShape(5.dp)),
+                            color = Color(0xFF10B981),
+                            trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f)
+                        )
+                        
+                        Text(
+                            text = "💡 Intelligent Guard: Prevents picking up, tilting, or viewing your phone while seated from accidentally wiping out your sedentary timer. Requires walking continuously for several seconds before a reset occurs.",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            lineHeight = 16.sp
+                        )
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
                     // Raw coordinates
                     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                         Row(
@@ -675,8 +762,9 @@ fun MovementScreen(viewModel: WaterViewModel) {
                             fontSize = 15.sp,
                             color = Color(0xFF1E3A8A)
                         )
+                        Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Simulate motion if the device is stationary on your computer.",
+                            text = "These buttons inject simulated virtual physical states, ideal for testing when your phone is stationary on your computer desk.",
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center,
                             color = Color(0xFF2563EB)
@@ -711,6 +799,45 @@ fun MovementScreen(viewModel: WaterViewModel) {
                             modifier = Modifier.weight(1f).padding(horizontal = 4.dp)
                         ) {
                             Text("Sim Moving", fontSize = 11.sp, color = Color.White)
+                        }
+                    }
+
+                    // Explanatory breakdown of the Sim options
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White.copy(alpha = 0.8f)
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "How to test the Simulation options:",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E3A8A)
+                            )
+                            
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("🪑", fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text("Sim Sitting (Inactive State)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    Text("Simulates zero sensor motion variance (placing the phone on a table). This allows you to watch the 'Sedentary Duration' timer start to rise up continuously.", fontSize = 10.sp, color = Color(0xFF374151))
+                                }
+                            }
+                            
+                            Row(verticalAlignment = Alignment.Top) {
+                                Text("🏃", fontSize = 14.sp)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Column {
+                                    Text("Sim Moving (Active Standing/Walking State)", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                    Text("Simulates sustained 3D movement. You will see the 'Sustained Walk Filter' progress bar start to fill up. Once it reaches 100% (after 4 seconds of simulated walking), the 'Sedentary Duration' automatically resets to 0!", fontSize = 10.sp, color = Color(0xFF374151))
+                                }
+                            }
                         }
                     }
 

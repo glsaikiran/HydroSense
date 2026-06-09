@@ -52,6 +52,11 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationarySeconds = MutableStateFlow(0)
     val stationarySeconds: StateFlow<Int> = _stationarySeconds
 
+    // Movement threshold accumulator to filter out sudden picking up or viewing phone.
+    // Represents progress (0.0 to 1.0) towards performing active stand up / walk.
+    private val _movementAccumulator = MutableStateFlow(0f)
+    val movementAccumulator: StateFlow<Float> = _movementAccumulator
+
     private val _showBreakAlert = MutableStateFlow(false)
     val showBreakAlert: StateFlow<Boolean> = _showBreakAlert
 
@@ -116,6 +121,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     private fun startInappInactivityTicker() {
         tickerJob?.cancel()
         tickerJob = viewModelScope.launch {
+            var currentAccumulator = 0
             while (true) {
                 delay(1000) // tick every second
 
@@ -126,15 +132,22 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                     settings.selectedActivityProfile
                 }
 
-                // If user is actually Moving (Medium or High), reset stationary timer automatically!
+                // Only reset sedentary duration when a threshold of sustained movement is met (e.g. accumulator reaches 8)
+                // Short movements like lifting the phone to view it will only build 2-4 units and then decay without resetting.
                 if (activity != "Low") {
-                    _stationarySeconds.value = 0
+                    currentAccumulator = (currentAccumulator + 2).coerceAtMost(8)
+                    _movementAccumulator.value = currentAccumulator.toFloat() / 8f
+                    
+                    if (currentAccumulator >= 8) {
+                        _stationarySeconds.value = 0
+                    }
                 } else {
+                    currentAccumulator = (currentAccumulator - 1).coerceAtLeast(0)
+                    _movementAccumulator.value = currentAccumulator.toFloat() / 8f
+
                     _stationarySeconds.value += 1
 
                     // Check if they hit the movement break interval
-                    // For app preview / testing convenience:
-                    // Under 45-60 mins, but let's check settings
                     val limitSeconds = settings.movementBreakIntervalMinutes * 60
                     if (_stationarySeconds.value >= limitSeconds && !_showBreakAlert.value) {
                         _showBreakAlert.value = true
