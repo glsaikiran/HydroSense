@@ -151,6 +151,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                     val limitSeconds = settings.movementBreakIntervalMinutes * 60
                     if (_stationarySeconds.value >= limitSeconds && !_showBreakAlert.value) {
                         _showBreakAlert.value = true
+                        triggerAlertMedia()
                     }
                 }
             }
@@ -199,7 +200,11 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         waterQuantityLevelMl: Int,
         breakMinutes: Int,
         sensorEnabled: Boolean,
-        activityProfile: String
+        activityProfile: String,
+        enableVibe: Boolean,
+        vibeType: String,
+        enableSnd: Boolean,
+        sndType: String
     ) {
         viewModelScope.launch {
             val updated = UserSettings(
@@ -207,7 +212,11 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                 waterQuantityLevelMl = waterQuantityLevelMl,
                 movementBreakIntervalMinutes = breakMinutes,
                 enableSensorTracking = sensorEnabled,
-                selectedActivityProfile = activityProfile
+                selectedActivityProfile = activityProfile,
+                enableVibration = enableVibe,
+                vibrationType = vibeType,
+                enableSound = enableSnd,
+                soundType = sndType
             )
             repository.saveSettings(updated)
             sensorTracker.enableSimulation(activityProfile != "Auto")
@@ -215,6 +224,17 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                 sensorTracker.simulateState(activityProfile)
             }
         }
+    }
+
+    fun triggerAlertMedia() {
+        val settings = settingsState.value
+        com.example.util.AlertManager.playSoundAndVibrate(
+            context = getApplication(),
+            enableSound = settings.enableSound,
+            soundType = settings.soundType,
+            enableVibration = settings.enableVibration,
+            vibrationType = settings.vibrationType
+        )
     }
 
     fun dismissBreakAlert() {
@@ -257,6 +277,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     // Convenience test triggers for evaluating features easily
     fun triggerDemoBreakAlertImmediately() {
         _showBreakAlert.value = true
+        triggerAlertMedia()
     }
 
     fun fastForwardStationaryTime(bySeconds: Int) {

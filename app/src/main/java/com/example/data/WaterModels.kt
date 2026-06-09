@@ -26,5 +26,9 @@ data class UserSettings(
     val waterQuantityLevelMl: Int = 250, // 150ml, 250ml, 330ml, 500ml
     val movementBreakIntervalMinutes: Int = 50, // Best practices: 45-60 mins
     val enableSensorTracking: Boolean = true,
-    val selectedActivityProfile: String = "Auto" // "Auto", "Low", "Medium", "High"
+    val selectedActivityProfile: String = "Auto", // "Auto", "Low", "Medium", "High"
+    val enableVibration: Boolean = true,
+    val vibrationType: String = "Classic", // "Classic", "Heartbeat", "Pulse", "SOS"
+    val enableSound: Boolean = true,
+    val soundType: String = "Ripple" // "Ripple", "Bubble", "Ding", "Gong"
 )

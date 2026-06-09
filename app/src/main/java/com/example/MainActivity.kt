@@ -1146,12 +1146,18 @@ fun SettingsTab(settings: UserSettings, viewModel: WaterViewModel) {
     var breakIntervalStr by remember(settings) { mutableStateOf(settings.movementBreakIntervalMinutes.toString()) }
     var selectedProfile by remember(settings) { mutableStateOf(settings.selectedActivityProfile) }
     var rawSensorsEnabled by remember(settings) { mutableStateOf(settings.enableSensorTracking) }
+    
+    var enableVibration by remember(settings) { mutableStateOf(settings.enableVibration) }
+    var vibrationType by remember(settings) { mutableStateOf(settings.vibrationType) }
+    var enableSound by remember(settings) { mutableStateOf(settings.enableSound) }
+    var soundType by remember(settings) { mutableStateOf(settings.soundType) }
 
     val context = LocalContext.current
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 24.dp)
     ) {
         item {
             Card(
@@ -1224,31 +1230,185 @@ fun SettingsTab(settings: UserSettings, viewModel: WaterViewModel) {
                         fontSize = 10.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+            }
+        }
 
-                    Spacer(modifier = Modifier.height(8.dp))
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = "Alert Sound & Vibration Styles",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
 
+                    // Vibration preference
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Haptic Vibration Warning",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Shake the phone to alert on long stationary periods",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = enableVibration,
+                            onCheckedChange = { enableVibration = it }
+                        )
+                    }
+
+                    if (enableVibration) {
+                        Text(text = "Select Vibration Style:", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("Classic", "Heartbeat", "Pulse", "SOS").forEach { vibe ->
+                                val isSelected = vibrationType == vibe
+                                Button(
+                                    onClick = { vibrationType = vibe },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 2.dp)
+                                ) {
+                                    Text(
+                                        text = vibe,
+                                        fontSize = 10.sp,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                    // Sound preference
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Audio Tone Warnings",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Text(
+                                text = "Play short audio chime alerts on idle stretch times",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = enableSound,
+                            onCheckedChange = { enableSound = it }
+                        )
+                    }
+
+                    if (enableSound) {
+                        Text(text = "Select Sound Style Chime:", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf("Ripple", "Bubble", "Ding", "Gong").forEach { snd ->
+                                val isSelected = soundType == snd
+                                Button(
+                                    onClick = { soundType = snd },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    shape = RoundedCornerShape(10.dp),
+                                    modifier = Modifier.weight(1f),
+                                    contentPadding = PaddingValues(horizontal = 2.dp)
+                                ) {
+                                    Text(
+                                        text = snd,
+                                        fontSize = 10.sp,
+                                        color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Test alerts buttons
                     Button(
                         onClick = {
-                            val targetInt = targetMlStr.toIntOrNull() ?: 2500
-                            val glassInt = glassSizeStr.toIntOrNull() ?: 250
-                            val breakInt = breakIntervalStr.toIntOrNull() ?: 50
-                            viewModel.saveUserSettings(
-                                dailyTargetMl = targetInt,
-                                waterQuantityLevelMl = glassInt,
-                                breakMinutes = breakInt,
-                                sensorEnabled = rawSensorsEnabled,
-                                activityProfile = selectedProfile
+                            com.example.util.AlertManager.playSoundAndVibrate(
+                                context = context,
+                                enableSound = enableSound,
+                                soundType = soundType,
+                                enableVibration = enableVibration,
+                                vibrationType = vibrationType
                             )
-                            Toast.makeText(context, "Preferences Saved and Live Sync Activated!", Toast.LENGTH_SHORT).show()
                         },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondary
+                        ),
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(imageVector = Icons.Default.Check, contentDescription = "Save settings")
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Save Config & Recalculate Intervals")
+                        Icon(imageVector = Icons.Default.VolumeUp, contentDescription = "Test settings sound vibrations")
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Preview Selected Alert Profile")
                     }
                 }
+            }
+        }
+
+        item {
+            Button(
+                onClick = {
+                    val targetInt = targetMlStr.toIntOrNull() ?: 2500
+                    val glassInt = glassSizeStr.toIntOrNull() ?: 250
+                    val breakInt = breakIntervalStr.toIntOrNull() ?: 50
+                    viewModel.saveUserSettings(
+                        dailyTargetMl = targetInt,
+                        waterQuantityLevelMl = glassInt,
+                        breakMinutes = breakInt,
+                        sensorEnabled = rawSensorsEnabled,
+                        activityProfile = selectedProfile,
+                        enableVibe = enableVibration,
+                        vibeType = vibrationType,
+                        enableSnd = enableSound,
+                        sndType = soundType
+                    )
+                    Toast.makeText(context, "Preferences and Alert Theme Saved Successfully!", Toast.LENGTH_SHORT).show()
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                shape = RoundedCornerShape(14.dp)
+            ) {
+                Icon(imageVector = Icons.Default.Check, contentDescription = "Save settings configurations")
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Save Configuration")
             }
         }
     }
