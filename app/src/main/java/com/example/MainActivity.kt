@@ -1,11 +1,15 @@
 package com.example
 
 import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import com.example.sensor.SedentaryService
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.Canvas
@@ -58,6 +62,33 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // 1. Request Notification Permissions on Android 13+ (API 33+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val requestPermissionLauncher = registerForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted: Boolean ->
+                if (isGranted) {
+                    Toast.makeText(this, "Notifications allowed for Sedentary Alerts!", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Enable notifications in settings to receive custom Alerts.", Toast.LENGTH_LONG).show()
+                }
+            }
+            requestPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+        }
+
+        // 2. Start the background sedentary tracking service
+        try {
+            val serviceIntent = Intent(this, SedentaryService::class.java)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         setContent {
             MyApplicationTheme {
                 MainAppScreen()
@@ -1152,6 +1183,11 @@ fun SettingsTab(settings: UserSettings, viewModel: WaterViewModel) {
     var enableSound by remember(settings) { mutableStateOf(settings.enableSound) }
     var soundType by remember(settings) { mutableStateOf(settings.soundType) }
 
+    var bedtimeStartHour by remember(settings) { mutableStateOf(settings.bedtimeStartHour) }
+    var bedtimeStartMinute by remember(settings) { mutableStateOf(settings.bedtimeStartMinute) }
+    var bedtimeEndHour by remember(settings) { mutableStateOf(settings.bedtimeEndHour) }
+    var bedtimeEndMinute by remember(settings) { mutableStateOf(settings.bedtimeEndMinute) }
+
     val context = LocalContext.current
 
     LazyColumn(
@@ -1385,6 +1421,187 @@ fun SettingsTab(settings: UserSettings, viewModel: WaterViewModel) {
         }
 
         item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                )
+            ) {
+                Column(
+                    modifier = Modifier.padding(20.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.NightsStay,
+                                contentDescription = "Bedtime Config",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Bedtime Sleep Schedule",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 16.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        
+                        // Show badge if currently Bedtime
+                        val currentSettingsWithBedtime = settings.copy(
+                            bedtimeStartHour = bedtimeStartHour,
+                            bedtimeStartMinute = bedtimeStartMinute,
+                            bedtimeEndHour = bedtimeEndHour,
+                            bedtimeEndMinute = bedtimeEndMinute
+                        )
+                        val isCurrentlySleeping = viewModel.isCurrentlyBedtime(currentSettingsWithBedtime)
+                        if (isCurrentlySleeping) {
+                            SuggestionChip(
+                                onClick = {},
+                                label = { Text("Active Now", fontSize = 10.sp) },
+                                colors = SuggestionChipDefaults.suggestionChipColors(
+                                    labelColor = Color(0xFFEF4444)
+                                )
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "To guarantee an undisturbed rest at night, any inactivity screen popups, notification sounds, or vibrations are automatically silenced during bedtime.",
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        lineHeight = 16.sp
+                    )
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+
+                    // Bedtime Starts Control Row
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Bedtime Start:",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { bedtimeStartHour = (bedtimeStartHour - 1 + 24) % 24 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Dec start hr", modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    text = String.format("%02d", bedtimeStartHour),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.width(24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                IconButton(
+                                    onClick = { bedtimeStartHour = (bedtimeStartHour + 1) % 24 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Inc start hr", modifier = Modifier.size(16.dp))
+                                }
+                                
+                                Text(":", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
+                                
+                                IconButton(
+                                    onClick = { bedtimeStartMinute = (bedtimeStartMinute - 5 + 60) % 60 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Dec start min", modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    text = String.format("%02d", bedtimeStartMinute),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.width(24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                IconButton(
+                                    onClick = { bedtimeStartMinute = (bedtimeStartMinute + 5) % 60 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Inc start min", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f))
+
+                    // Bedtime Ends Control Row
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Bedtime End:",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 14.sp
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(
+                                    onClick = { bedtimeEndHour = (bedtimeEndHour - 1 + 24) % 24 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Dec end hr", modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    text = String.format("%02d", bedtimeEndHour),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.width(24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                IconButton(
+                                    onClick = { bedtimeEndHour = (bedtimeEndHour + 1) % 24 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Inc end hr", modifier = Modifier.size(16.dp))
+                                }
+                                
+                                Text(":", fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 2.dp))
+                                
+                                IconButton(
+                                    onClick = { bedtimeEndMinute = (bedtimeEndMinute - 5 + 60) % 60 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Remove, contentDescription = "Dec end min", modifier = Modifier.size(16.dp))
+                                }
+                                Text(
+                                    text = String.format("%02d", bedtimeEndMinute),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    modifier = Modifier.width(24.dp),
+                                    textAlign = TextAlign.Center
+                                )
+                                IconButton(
+                                    onClick = { bedtimeEndMinute = (bedtimeEndMinute + 5) % 60 },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(Icons.Default.Add, contentDescription = "Inc end min", modifier = Modifier.size(16.dp))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             Button(
                 onClick = {
                     val targetInt = targetMlStr.toIntOrNull() ?: 2500
@@ -1399,9 +1616,13 @@ fun SettingsTab(settings: UserSettings, viewModel: WaterViewModel) {
                         enableVibe = enableVibration,
                         vibeType = vibrationType,
                         enableSnd = enableSound,
-                        sndType = soundType
+                        sndType = soundType,
+                        bedtimeStartH = bedtimeStartHour,
+                        bedtimeStartM = bedtimeStartMinute,
+                        bedtimeEndH = bedtimeEndHour,
+                        bedtimeEndM = bedtimeEndMinute
                     )
-                    Toast.makeText(context, "Preferences and Alert Theme Saved Successfully!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "Preferences, Sleep Schedule, and Alerts Saved!", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp)

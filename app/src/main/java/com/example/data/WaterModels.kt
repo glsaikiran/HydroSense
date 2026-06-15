@@ -30,5 +30,10 @@ data class UserSettings(
     val enableVibration: Boolean = true,
     val vibrationType: String = "Classic", // "Classic", "Heartbeat", "Pulse", "SOS"
     val enableSound: Boolean = true,
-    val soundType: String = "Ripple" // "Ripple", "Bubble", "Ding", "Gong"
+    val soundType: String = "Ripple", // "Ripple", "Bubble", "Ding", "Gong"
+    val lastActiveTimestamp: Long = 0L,
+    val bedtimeStartHour: Int = 22, // 10 PM
+    val bedtimeStartMinute: Int = 0,
+    val bedtimeEndHour: Int = 7, // 7 AM
+    val bedtimeEndMinute: Int = 0
 )

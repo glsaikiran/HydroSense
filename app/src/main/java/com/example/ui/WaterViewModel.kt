@@ -52,6 +52,8 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     private val _stationarySeconds = MutableStateFlow(0)
     val stationarySeconds: StateFlow<Int> = _stationarySeconds
 
+    private var lastActiveTime: Long = 0L
+
     // Movement threshold accumulator to filter out sudden picking up or viewing phone.
     // Represents progress (0.0 to 1.0) towards performing active stand up / walk.
     private val _movementAccumulator = MutableStateFlow(0f)
@@ -114,6 +116,22 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
             }.collect()
         }
 
+        // Initialize and maintain lastActiveTime from Room userSettings Flow to eliminate race conditions
+        viewModelScope.launch {
+            repository.userSettings.collect { settings ->
+                if (settings.lastActiveTimestamp == 0L) {
+                    val now = System.currentTimeMillis()
+                    lastActiveTime = now
+                    val updated = settings.copy(lastActiveTimestamp = now)
+                    repository.saveSettings(updated)
+                } else {
+                    if (lastActiveTime == 0L) {
+                        lastActiveTime = settings.lastActiveTimestamp
+                    }
+                }
+            }
+        }
+
         // Ticker to track background time elapsed, stationary time, etc.
         startInappInactivityTicker()
     }
@@ -125,12 +143,20 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
             while (true) {
                 delay(1000) // tick every second
 
+                if (lastActiveTime == 0L) {
+                    continue
+                }
+
                 val settings = settingsState.value
                 val activity = if (settings.selectedActivityProfile == "Auto") {
                     sensorTracker.activityLevel.value
                 } else {
                     settings.selectedActivityProfile
                 }
+
+                // Compute exact background-friendly elapsed seconds!
+                val elapsedSeconds = ((System.currentTimeMillis() - lastActiveTime) / 1000).toInt().coerceAtLeast(0)
+                _stationarySeconds.value = elapsedSeconds
 
                 // Only reset sedentary duration when a threshold of sustained movement is met (e.g. accumulator reaches 8)
                 // Short movements like lifting the phone to view it will only build 2-4 units and then decay without resetting.
@@ -139,19 +165,21 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                     _movementAccumulator.value = currentAccumulator.toFloat() / 8f
                     
                     if (currentAccumulator >= 8) {
-                        _stationarySeconds.value = 0
+                        resetStationaryTimer()
+                        currentAccumulator = 0
+                        _movementAccumulator.value = 0f
                     }
                 } else {
                     currentAccumulator = (currentAccumulator - 1).coerceAtLeast(0)
                     _movementAccumulator.value = currentAccumulator.toFloat() / 8f
 
-                    _stationarySeconds.value += 1
-
                     // Check if they hit the movement break interval
                     val limitSeconds = settings.movementBreakIntervalMinutes * 60
-                    if (_stationarySeconds.value >= limitSeconds && !_showBreakAlert.value) {
-                        _showBreakAlert.value = true
-                        triggerAlertMedia()
+                    if (elapsedSeconds >= limitSeconds && !_showBreakAlert.value) {
+                        if (!isCurrentlyBedtime(settings)) {
+                            _showBreakAlert.value = true
+                            triggerAlertMedia()
+                        }
                     }
                 }
             }
@@ -204,9 +232,14 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         enableVibe: Boolean,
         vibeType: String,
         enableSnd: Boolean,
-        sndType: String
+        sndType: String,
+        bedtimeStartH: Int,
+        bedtimeStartM: Int,
+        bedtimeEndH: Int,
+        bedtimeEndM: Int
     ) {
         viewModelScope.launch {
+            val current = settingsState.value
             val updated = UserSettings(
                 dailyTargetMl = dailyTargetMl,
                 waterQuantityLevelMl = waterQuantityLevelMl,
@@ -216,7 +249,12 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
                 enableVibration = enableVibe,
                 vibrationType = vibeType,
                 enableSound = enableSnd,
-                soundType = sndType
+                soundType = sndType,
+                lastActiveTimestamp = if (lastActiveTime != 0L) lastActiveTime else current.lastActiveTimestamp,
+                bedtimeStartHour = bedtimeStartH,
+                bedtimeStartMinute = bedtimeStartM,
+                bedtimeEndHour = bedtimeEndH,
+                bedtimeEndMinute = bedtimeEndM
             )
             repository.saveSettings(updated)
             sensorTracker.enableSimulation(activityProfile != "Auto")
@@ -237,9 +275,38 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    fun resetStationaryTimer() {
+        val now = System.currentTimeMillis()
+        lastActiveTime = now
+        _stationarySeconds.value = 0
+        viewModelScope.launch {
+            val settings = settingsState.value
+            val updated = settings.copy(lastActiveTimestamp = now)
+            repository.saveSettings(updated)
+        }
+    }
+
+    fun isCurrentlyBedtime(settings: UserSettings): Boolean {
+        val cal = Calendar.getInstance()
+        val hour = cal.get(Calendar.HOUR_OF_DAY)
+        val minute = cal.get(Calendar.MINUTE)
+        
+        val currentMinutes = hour * 60 + minute
+        val startMinutes = settings.bedtimeStartHour * 60 + settings.bedtimeStartMinute
+        val endMinutes = settings.bedtimeEndHour * 60 + settings.bedtimeEndMinute
+        
+        return if (startMinutes == endMinutes) {
+            false
+        } else if (startMinutes < endMinutes) {
+            currentMinutes in startMinutes..endMinutes
+        } else {
+            currentMinutes >= startMinutes || currentMinutes <= endMinutes
+        }
+    }
+
     fun dismissBreakAlert() {
         _showBreakAlert.value = false
-        _stationarySeconds.value = 0 // reset stationary counter
+        resetStationaryTimer()
     }
 
     // Launch stretch/break dynamic timer
@@ -262,7 +329,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
     fun skipStretchBreakTimer() {
         _isBreakTimerActive.value = false
         breakTimerJob?.cancel()
-        _stationarySeconds.value = 0
+        resetStationaryTimer()
     }
 
     private fun completeStretchBreak() {
@@ -271,7 +338,7 @@ class WaterViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             repository.logMovement(durationSeconds = 120)
         }
-        _stationarySeconds.value = 0
+        resetStationaryTimer()
     }
 
     // Convenience test triggers for evaluating features easily
